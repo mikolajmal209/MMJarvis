@@ -11,6 +11,15 @@ export interface Tool {
   name: string;
   description: string;
   parameters?: Record<string, unknown>;
+  /** The output contains text other people wrote (emails, invites), which may hide instructions for the model. */
+  untrustedOutput?: boolean;
+  /**
+   * When the user must approve the call in the app: 'always', or only once the model has read
+   * untrusted text in this turn (a prompt injection could otherwise trigger it).
+   */
+  confirm?: 'always' | 'after_untrusted';
+  /** One line shown to the user when asking to approve the call. */
+  describe?(args: Record<string, unknown>): string;
   run(args: Record<string, unknown>): Promise<unknown>;
 }
 
@@ -58,6 +67,8 @@ export const TOOLS: Tool[] = [
   },
   {
     name: 'complete_task',
+    confirm: 'after_untrusted',
+    describe: (a) => `Mark task ${a.id} as done`,
     description: 'Mark a task as done, by id. Call list_tasks first if you do not know the id.',
     parameters: obj({ id: { type: 'integer' } }, ['id']),
     async run(a) {
@@ -67,6 +78,8 @@ export const TOOLS: Tool[] = [
   },
   {
     name: 'delete_task',
+    confirm: 'after_untrusted',
+    describe: (a) => `Delete task ${a.id}`,
     description: 'Delete a task by id.',
     parameters: obj({ id: { type: 'integer' } }, ['id']),
     async run(a) {
@@ -78,6 +91,8 @@ export const TOOLS: Tool[] = [
   // Long-term memory
   {
     name: 'remember',
+    confirm: 'after_untrusted',
+    describe: (a) => `Remember permanently: "${a.fact}"`,
     description:
       'Save a lasting fact about the user (preferences, goals, people, job search details) so you remember it in future conversations. Use it whenever the user shares something worth remembering or asks you to remember.',
     parameters: obj({ fact: str('The fact, written as a short sentence') }, ['fact']),
@@ -88,6 +103,8 @@ export const TOOLS: Tool[] = [
   },
   {
     name: 'forget',
+    confirm: 'after_untrusted',
+    describe: (a) => `Forget remembered fact ${a.id}`,
     description: 'Delete a remembered fact by id.',
     parameters: obj({ id: { type: 'integer' } }, ['id']),
     async run(a) {
@@ -99,6 +116,7 @@ export const TOOLS: Tool[] = [
   // Job applications
   {
     name: 'list_job_applications',
+    untrustedOutput: true,
     description: 'List the user\'s job applications with status, dates and interview times.',
     async run() {
       return db.jobs.toArray();
@@ -132,6 +150,8 @@ export const TOOLS: Tool[] = [
   },
   {
     name: 'update_job_application',
+    confirm: 'after_untrusted',
+    describe: (a) => `Update job application ${a.id}`,
     description: 'Change the status, interview time or note of a job application, by id.',
     parameters: obj(
       {
@@ -162,6 +182,7 @@ export const TOOLS: Tool[] = [
   // Google Calendar and Gmail, through the Apps Script bridge
   {
     name: 'get_calendar_events',
+    untrustedOutput: true,
     description: 'Get the user\'s Google Calendar events in a date range. Use for planning the day.',
     parameters: obj(
       { from: str('Start, ISO 8601. Defaults to now.'), to: str('End, ISO 8601. Defaults to end of today.') },
@@ -172,6 +193,8 @@ export const TOOLS: Tool[] = [
   },
   {
     name: 'create_calendar_event',
+    confirm: 'always',
+    describe: (a) => `Add "${a.title}" to Google Calendar at ${a.start}`,
     description:
       'Create a Google Calendar event. Always confirm the title and time with the user before calling this.',
     parameters: obj(
@@ -190,6 +213,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: 'search_email',
+    untrustedOutput: true,
     description:
       'Search the user\'s Gmail with Gmail search syntax (e.g. "from:hr@acme.com newer_than:7d"). Returns subject, sender, date and a short snippet. Read only.',
     parameters: obj({ query: str('Gmail search query'), max: { type: 'integer', description: 'Max results, default 10' } }, ['query']),

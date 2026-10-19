@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { listModels } from '../ai/gemini';
-import { callBridge } from '../google/bridge';
+import { callBridge, isValidBridgeUrl } from '../google/bridge';
 import { DEFAULT_MODEL, updateSettings, useSettings } from '../settings';
 import { TrashIcon } from './Icons';
 
@@ -101,6 +101,9 @@ export function SettingsView() {
             onChange={(e) => updateSettings({ googleBridgeUrl: e.target.value.trim() })}
             placeholder="https://script.google.com/macros/s/…/exec"
           />
+          {s.googleBridgeUrl && !isValidBridgeUrl(s.googleBridgeUrl) && (
+            <span className="muted small">This must be the script.google.com web app URL ending in /exec.</span>
+          )}
         </label>
         <label>
           <span>Secret token</span>

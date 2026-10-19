@@ -43,7 +43,10 @@ export function ChatView() {
     await db.messages.add({ role: 'user', text: t, createdAt: Date.now() });
     setBusy('Thinking');
     try {
-      const reply = await ask((tool) => setBusy(TOOL_LABELS[tool] ?? 'Working'));
+      const reply = await ask(
+        (tool) => setBusy(TOOL_LABELS[tool] ?? 'Working'),
+        async (action) => confirm(`Jarvis wants to: ${action}\n\nAllow?`),
+      );
       await db.messages.add({ role: 'assistant', text: reply.text, createdAt: Date.now(), model: reply.model });
       if (settings.speakReplies || fromVoice) speak(reply.text, settings.voiceLang);
     } catch (e) {
