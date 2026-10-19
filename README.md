@@ -43,6 +43,13 @@ To install it, open that address on your phone (Chrome: menu > **Add to Home scr
 
 "Anyone" only means the URL is reachable; every request must carry your secret token. Keep the token private.
 
+## Security notes
+
+- **Restrict your Gemini keys.** In [Google Cloud Console > Credentials](https://console.cloud.google.com/apis/credentials), limit the key you paste into the app to the **Generative Language API** and to your site as an **HTTP referrer** (for example `https://<your-user>.github.io/*`). Use a separate key for the Apps Script, restricted to the same API. A leaked key then cannot be used from elsewhere.
+- **The token unlocks your Gmail and Calendar.** Anyone with the web app URL and token can read your email. If you think it leaked, delete the `JARVIS_TOKEN` script property, run `setup` again and paste the new token into the app.
+- **Emails can contain hidden instructions for the AI.** Jarvis treats email and calendar text as data, and it asks you before it adds a calendar event, or before it saves a memory or changes tasks and applications after reading your email. Say no to anything you did not ask for.
+- The built app ships with a Content Security Policy that only lets it talk to Gemini and your Apps Script.
+
 ### What the job tracker does
 
 Every hour the script searches Gmail for application-related emails (English and Polish keywords) from the last two days, and on the first run the last 30 days. Only those emails are sent to Gemini, which works out the company, role and what happened (CV sent, reply, interview, offer, rejection). The results go into a **Jarvis job applications** spreadsheet in your Google Drive, which the **Jobs** screen reads.

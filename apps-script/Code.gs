@@ -54,12 +54,19 @@ function doPost(e) {
   try {
     var req = JSON.parse(e.postData.contents);
     var token = props().getProperty('JARVIS_TOKEN');
-    if (!token || req.token !== token) throw new Error('Wrong token');
+    if (!token || token.length < 32 || !sameString_(String(req.token || ''), token)) throw new Error('Wrong token');
     out = { ok: true, result: handle_(req.action, req.params || {}) };
   } catch (err) {
     out = { ok: false, error: String(err && err.message ? err.message : err) };
   }
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+}
+
+/** Compares without stopping at the first different character, so timing does not reveal the token. */
+function sameString_(a, b) {
+  var diff = a.length ^ b.length;
+  for (var i = 0; i < b.length; i++) diff |= (a.charCodeAt(i) || 0) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 function handle_(action, params) {
@@ -103,9 +110,12 @@ function createEvent_(p) {
   if (!p.title || !p.start) throw new Error('title and start are required');
   var start = new Date(p.start);
   var end = p.end ? new Date(p.end) : new Date(start.getTime() + 60 * 60 * 1000);
-  var ev = CalendarApp.getDefaultCalendar().createEvent(p.title, start, end, { description: p.description || '' });
-  if (p.remind_minutes_before) ev.addPopupReminder(Number(p.remind_minutes_before));
-  return { id: ev.getId(), title: p.title, start: start.toISOString(), end: end.toISOString() };
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) throw new Error('Invalid start or end');
+  var title = String(p.title).slice(0, 200);
+  var ev = CalendarApp.getDefaultCalendar().createEvent(title, start, end, { description: String(p.description || '').slice(0, 2000) });
+  var remind = Number(p.remind_minutes_before);
+  if (remind > 0 && remind <= 40320) ev.addPopupReminder(remind);
+  return { id: ev.getId(), title: title, start: start.toISOString(), end: end.toISOString() };
 }
 
 function searchEmail_(p) {
@@ -217,7 +227,13 @@ function classifyEmail_(m, apiKey, model) {
   if (res.getResponseCode() !== 200) throw new Error('Gemini ' + res.getResponseCode() + ': ' + res.getContentText().slice(0, 300));
   var data = JSON.parse(res.getContentText());
   var part = data.candidates && data.candidates[0].content.parts[0];
-  return part ? JSON.parse(part.text) : null;
+  if (!part) return null;
+  // The email text is written by strangers and can steer the model, so keep its answer short and plain.
+  var info = JSON.parse(part.text);
+  ['company', 'role', 'summary', 'interview_at'].forEach(function (k) {
+    if (info[k] != null) info[k] = String(info[k]).replace(/[\r\n]+/g, ' ').slice(0, k === 'summary' ? 300 : 100);
+  });
+  return info;
 }
 
 function applyEmail_(info, emailDate) {
@@ -329,9 +345,15 @@ function readJobs_() {
   });
 }
 
+/** Values come from emails, so stop Sheets from treating them as formulas (e.g. =IMPORTXML(...)). */
+function plainCell_(v) {
+  var s = String(v || '');
+  return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+}
+
 function writeJobs_(jobs) {
   var sh = jobsSheet_();
-  var rows = jobs.map(function (j) { return JOB_HEADERS.map(function (h) { return j[h] || ''; }); });
+  var rows = jobs.map(function (j) { return JOB_HEADERS.map(function (h) { return plainCell_(j[h]); }); });
   sh.getRange(2, 1, Math.max(sh.getMaxRows() - 1, 1), JOB_HEADERS.length).clearContent();
   if (rows.length) {
     // Plain text format so dates are not converted by Sheets.
