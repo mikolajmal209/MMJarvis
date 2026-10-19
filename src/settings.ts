@@ -19,7 +19,8 @@ const DEFAULTS: Settings = {
   googleBridgeUrl: '',
   googleBridgeToken: '',
   speakReplies: true,
-  voiceLang: 'en-US',
+  // Polish phones and browsers start with Polish voice input and speech.
+  voiceLang: navigator.language?.toLowerCase().startsWith('pl') ? 'pl-PL' : 'en-US',
   userName: '',
 };
 
